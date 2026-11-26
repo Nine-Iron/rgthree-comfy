@@ -5,6 +5,7 @@ import { NodeTypesString } from "./constants.js";
 import { addConnectionLayoutSupport } from "./utils.js";
 import { RgthreeBaseWidget } from "./utils_widgets.js";
 import { measureText } from "./utils_canvas.js";
+import { getVueWidgetLocalPos, isVueNodesMode } from "./utils_vue_nodes.js";
 function imageDataToUrl(data) {
     return api.apiURL(`/view?filename=${encodeURIComponent(data.filename)}&type=${data.type}&subfolder=${data.subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`);
 }
@@ -156,7 +157,8 @@ export class RgthreeImageComparer extends RgthreeBaseServerNode {
         <li>
           <p>
             <strong>Properties.</strong> You can change the following properties (by right-clicking
-            on the node, and select "Properties" or "Properties Panel" from the menu):
+            on the node, and select "Properties" or "Properties Panel" from the menu, or
+            "⚙️ Properties" with ComfyUI's Nodes 2.0):
           </p>
           <ul>
             <li><p>
@@ -193,6 +195,8 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget {
         this.hitAreas = {};
         this.selected = [];
         this._value = { images: [] };
+        this.drawArea = [0, 0];
+        this.vueCanvas = null;
         this.node = node;
     }
     set value(v) {
@@ -231,21 +235,86 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget {
         return this._value;
     }
     setSelected(selected) {
+        var _a;
         this._value.images.forEach((d) => (d.selected = false));
         this.node.imgs.length = 0;
         for (const sel of selected) {
             if (!sel.img) {
                 sel.img = new Image();
+                sel.img.onload = () => {
+                    var _a;
+                    (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
+                };
                 sel.img.src = sel.url;
                 this.node.imgs.push(sel.img);
             }
             sel.selected = true;
         }
         this.selected = selected;
+        (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
     }
-    draw(ctx, node, width, y) {
+    bindVueCanvas(canvas) {
+        if (this.vueCanvas === canvas)
+            return;
+        this.vueCanvas = canvas;
+        const node = this.node;
+        const updatePos = (e) => {
+            var _a;
+            node.pointerOverPos = (_a = getVueWidgetLocalPos(e, canvas)) !== null && _a !== void 0 ? _a : node.pointerOverPos;
+        };
+        canvas.addEventListener("pointerenter", (e) => {
+            var _a;
+            if (this.vueCanvas !== canvas)
+                return;
+            node.isPointerOver = true;
+            updatePos(e);
+            (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
+        });
+        canvas.addEventListener("pointermove", (e) => {
+            var _a;
+            if (this.vueCanvas !== canvas)
+                return;
+            updatePos(e);
+            (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
+        });
+        canvas.addEventListener("pointerleave", () => {
+            var _a;
+            if (this.vueCanvas !== canvas)
+                return;
+            node.isPointerOver = false;
+            node.isPointerDown = false;
+            (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
+        });
+        canvas.addEventListener("pointerdown", (e) => {
+            var _a;
+            if (this.vueCanvas !== canvas || e.button !== 0)
+                return;
+            node.isPointerDown = true;
+            (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
+        }, { capture: true });
+        canvas.addEventListener("pointerup", () => {
+            var _a;
+            if (this.vueCanvas !== canvas)
+                return;
+            node.isPointerDown = false;
+            (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this);
+        }, { capture: true });
+    }
+    getLabelsHeight() {
+        return this.value.images.length > 2 ? 20 : 0;
+    }
+    draw(ctx, node, width, y, height) {
         var _a;
         this.hitAreas = {};
+        if (isVueNodesMode()) {
+            this.drawArea = [width, y + (height !== null && height !== void 0 ? height : 0)];
+            if (ctx.canvas instanceof HTMLCanvasElement) {
+                this.bindVueCanvas(ctx.canvas);
+            }
+        }
+        else {
+            this.drawArea = [node.size[0], node.size[1]];
+        }
         if (this.value.images.length > 2) {
             ctx.textAlign = "left";
             ctx.textBaseline = "top";
@@ -263,7 +332,7 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget {
                 });
                 x += width + spacing;
             }
-            x = (node.size[0] - (x - spacing)) / 2;
+            x = (this.drawArea[0] - (x - spacing)) / 2;
             for (const d of drawData) {
                 ctx.fillStyle = d.img.selected ? "rgba(180, 180, 180, 1)" : "rgba(180, 180, 180, 0.5)";
                 ctx.fillText(d.text, x, y);
@@ -274,7 +343,7 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget {
                 };
                 x += d.width + spacing;
             }
-            y += 20;
+            y += this.getLabelsHeight();
         }
         if (((_a = node.properties) === null || _a === void 0 ? void 0 : _a["comparer_mode"]) === "Click") {
             this.drawImage(ctx, this.selected[this.node.isPointerDown ? 1 : 0], y);
@@ -301,7 +370,7 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget {
         if (!((_a = image === null || image === void 0 ? void 0 : image.img) === null || _a === void 0 ? void 0 : _a.naturalWidth) || !((_b = image === null || image === void 0 ? void 0 : image.img) === null || _b === void 0 ? void 0 : _b.naturalHeight)) {
             return;
         }
-        let [nodeWidth, nodeHeight] = this.node.size;
+        let [nodeWidth, nodeHeight] = this.drawArea;
         const imageAspect = (image === null || image === void 0 ? void 0 : image.img.naturalWidth) / (image === null || image === void 0 ? void 0 : image.img.naturalHeight);
         let height = nodeHeight - y;
         const widgetAspect = nodeWidth / height;
@@ -345,6 +414,14 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget {
         ctx.restore();
     }
     computeSize(width) {
+        var _a;
+        if (isVueNodesMode()) {
+            const img = (_a = this.selected[0]) === null || _a === void 0 ? void 0 : _a.img;
+            const aspect = (img === null || img === void 0 ? void 0 : img.naturalWidth) && (img === null || img === void 0 ? void 0 : img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 0;
+            if (aspect) {
+                return [width, this.getLabelsHeight() + Math.round(width / aspect)];
+            }
+        }
         return [width, 20];
     }
     serializeValue(node, index) {

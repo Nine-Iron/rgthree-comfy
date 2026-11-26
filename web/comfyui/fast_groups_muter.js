@@ -2,8 +2,9 @@ import { app } from "../../scripts/app.js";
 import { RgthreeBaseVirtualNode } from "./base_node.js";
 import { NodeTypesString } from "./constants.js";
 import { SERVICE as FAST_GROUPS_SERVICE } from "./services/fast_groups_service.js";
-import { drawNodeWidget, fitString } from "./utils_canvas.js";
+import { drawNodeWidget, fitString, isLowQuality } from "./utils_canvas.js";
 import { RgthreeBaseWidget } from "./utils_widgets.js";
+import { isVueNodesMode, redrawVueNodeWidgets } from "./utils_vue_nodes.js";
 import { changeModeOfNodes, getGroupNodes } from "./utils.js";
 const PROPERTY_SORT = "sort";
 const PROPERTY_SORT_CUSTOM_ALPHA = "customSortAlphabet";
@@ -214,7 +215,8 @@ export class BaseFastGroupsModeChanger extends RgthreeBaseVirtualNode {
         <li>
           <p>
             <strong>Properties.</strong> You can change the following properties (by right-clicking
-            on the node, and select "Properties" or "Properties Panel" from the menu):
+            on the node, and select "Properties" or "Properties Panel" from the menu, or
+            "⚙️ Properties" with ComfyUI's Nodes 2.0):
           </p>
           <ul>
             <li><p>
@@ -353,6 +355,7 @@ class FastGroupsToggleRowWidget extends RgthreeBaseWidget {
     }
     draw(ctx, node, width, posY, height) {
         var _a;
+        this.lastDrawWidth = width;
         const widgetData = drawNodeWidget(ctx, { size: [width, height], pos: [15, posY] });
         const showNav = ((_a = node.properties) === null || _a === void 0 ? void 0 : _a[PROPERTY_SHOW_NAV]) !== false;
         let currentX = widgetData.width - widgetData.margin;
@@ -401,14 +404,18 @@ class FastGroupsToggleRowWidget extends RgthreeBaseWidget {
         return this.value;
     }
     mouse(event, pos, node) {
-        var _a, _b, _c;
+        var _a, _b;
+        var _c;
+        if (isVueNodesMode() && event.button !== 0) {
+            return false;
+        }
         if (event.type == "pointerdown") {
-            if (((_a = node.properties) === null || _a === void 0 ? void 0 : _a[PROPERTY_SHOW_NAV]) !== false && pos[0] >= node.size[0] - 15 - 28 - 1) {
+            const width = (_c = this.lastDrawWidth) !== null && _c !== void 0 ? _c : node.size[0];
+            if (((_a = node.properties) === null || _a === void 0 ? void 0 : _a[PROPERTY_SHOW_NAV]) !== false && pos[0] >= width - 15 - 28 - 1) {
                 const canvas = app.canvas;
-                const lowQuality = (((_b = canvas.ds) === null || _b === void 0 ? void 0 : _b.scale) || 1) <= 0.5;
-                if (!lowQuality) {
+                if (!isLowQuality()) {
                     canvas.centerOnNode(this.group);
-                    const zoomCurrent = ((_c = canvas.ds) === null || _c === void 0 ? void 0 : _c.scale) || 1;
+                    const zoomCurrent = ((_b = canvas.ds) === null || _b === void 0 ? void 0 : _b.scale) || 1;
                     const zoomX = canvas.canvas.width / this.group._size[0] - 0.02;
                     const zoomY = canvas.canvas.height / this.group._size[1] - 0.02;
                     canvas.setZoom(Math.min(zoomCurrent, zoomX, zoomY), [
@@ -420,6 +427,7 @@ class FastGroupsToggleRowWidget extends RgthreeBaseWidget {
             }
             else {
                 this.toggle();
+                redrawVueNodeWidgets(node);
             }
         }
         return true;

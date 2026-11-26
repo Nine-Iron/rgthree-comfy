@@ -31,6 +31,7 @@ import {app} from "scripts/app.js";
 import {api} from "scripts/api.js";
 import {Resolver, getResolver, wait} from "rgthree/common/shared_utils.js";
 import {RgthreeHelpDialog} from "rgthree/common/dialog.js";
+import {isVueNodesMode} from "./utils_vue_nodes.js";
 
 /**
  * Override the api.getNodeDefs call to add a hook for refreshing node defs.
@@ -73,6 +74,11 @@ interface MenuConfig {
   prepareValue?: (value: NodeProperty | undefined, node: TLGraphNode) => any;
   callback?: (node: TLGraphNode, value?: string) => void;
   subMenuOptions?: (string | null)[] | ((node: TLGraphNode) => (string | null)[]);
+  /**
+   * Hides the item in ComfyUI's Nodes 2.0, for features that rely on canvas drawing (like slot
+   * positions) that Nodes 2.0 doesn't use.
+   */
+  hideInVueNodes?: boolean;
 }
 
 export function addMenuItem(
@@ -87,6 +93,9 @@ export function addMenuItem(
     menuOptions: IContextMenuValue[],
   ) {
     oldGetExtraMenuOptions && oldGetExtraMenuOptions.apply(this, [canvas, menuOptions]);
+    if (config.hideInVueNodes && isVueNodesMode()) {
+      return;
+    }
     addMenuItemOnExtraMenuOptions(this, config, menuOptions, after);
   };
 }
@@ -219,6 +228,8 @@ export function addConnectionLayoutSupport(
   addMenuItem(node, app, {
     name: "Connections Layout",
     property: "connections_layout",
+    // Nodes 2.0 positions slots from its own DOM layout, ignoring our `getConnectionPos`.
+    hideInVueNodes: true,
     subMenuOptions: options.map((option) => option[0] + (option[1] ? " -> " + option[1] : "")),
     prepareValue: (value, node) => {
       const values = String(value).split(" -> ");

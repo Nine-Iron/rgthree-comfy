@@ -9,6 +9,40 @@ import {app} from "scripts/app.js";
 import {RgthreeBaseVirtualNode} from "./base_node.js";
 import {NodeTypesString} from "./constants.js";
 import {rgthree} from "./rgthree.js";
+import {RgthreeBaseWidget} from "./utils_widgets.js";
+import {isVueNodesMode} from "./utils_vue_nodes.js";
+
+/** A shared context used to measure text when we're not drawing. */
+let measureCtx: CanvasRenderingContext2D | null = null;
+
+/**
+ * In Nodes 2.0, LiteGraph doesn't draw node bodies, so our `drawNode` override never draws the
+ * label. Instead, this widget draws it in the Vue node. It draws nothing, and takes no space, in
+ * classic mode.
+ */
+class LabelVueWidget extends RgthreeBaseWidget<string> {
+  override readonly type = "custom";
+  override options = {serialize: false};
+  serialize = false;
+  value = "";
+
+  constructor() {
+    super("rgthree_label");
+  }
+
+  draw(ctx: CanvasRenderingContext2D, node: Label, width: number, posY: number) {
+    if (!isVueNodesMode()) return;
+    node.drawLabel(ctx, 0, posY);
+  }
+
+  computeSize(width: number): Point {
+    if (!isVueNodesMode() || !this.labelNode) return [0, 0];
+    measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+    return measureCtx ? this.labelNode.measureLabel(measureCtx) : [0, 0];
+  }
+
+  labelNode: Label | null = null;
+}
 
 /**
  * A label node that allows you to put floating text anywhere on the graph. The text is the `Title`
@@ -59,35 +93,68 @@ export class Label extends RgthreeBaseVirtualNode {
     this.color = "#fff0";
     this.bgcolor = "#fff0";
 
+    const vueWidget = new LabelVueWidget();
+    vueWidget.labelNode = this;
+    this.addCustomWidget(vueWidget);
+
     this.onConstructed();
   }
 
   draw(ctx: CanvasRenderingContext2D) {
     this.flags = this.flags || {};
     this.flags.allow_interaction = !this.flags.pinned;
-    ctx.save();
     this.color = "#fff0";
     this.bgcolor = "#fff0";
-    const fontColor = this.getPropString("fontColor", "#ffffff");
-    const backgroundColor = this.getPropString("backgroundColor", "");
+    const [width, height] = this.measureLabel(ctx);
+    this.size[0] = width;
+    this.size[1] = height;
+    this.drawLabel(ctx, 0, 0);
+  }
+
+  /** Sets the label font on the context. */
+  private setLabelFont(ctx: CanvasRenderingContext2D) {
     ctx.font = `${Math.max(this.getPropNumber("fontSize", 0), 1)}px ${
       this.properties["fontFamily"] ?? "Arial"
     }`;
-    const padding = Number(this.properties["padding"]) ?? 0;
+  }
 
+  /** Returns the lines of text to draw. */
+  private getLabelLines() {
     // Support literal "\\n" sequences as newlines and trim trailing newlines
     const processedTitle = (this.title ?? "").replace(/\\n/g, "\n").replace(/\n*$/, "");
-    const lines = processedTitle.split("\n");
+    return processedTitle.split("\n");
+  }
 
+  /** Measures the [width, height] the label needs, including padding. */
+  measureLabel(ctx: CanvasRenderingContext2D): Point {
+    ctx.save();
+    this.setLabelFont(ctx);
+    const padding = Number(this.properties["padding"]) || 0;
+    const lines = this.getLabelLines();
     const maxWidth = Math.max(...lines.map((s) => ctx.measureText(s).width));
-    this.size[0] = maxWidth + padding * 2;
-    this.size[1] = this.getPropNumber("fontSize", 1) * lines.length + padding * 2;
+    ctx.restore();
+    return [
+      maxWidth + padding * 2,
+      this.getPropNumber("fontSize", 1) * lines.length + padding * 2,
+    ];
+  }
+
+  /** Draws the label with its top-left at `x`,`y`. */
+  drawLabel(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    const [width, height] = this.measureLabel(ctx);
+    ctx.save();
+    ctx.translate(x, y);
+    const fontColor = this.getPropString("fontColor", "#ffffff");
+    const backgroundColor = this.getPropString("backgroundColor", "");
+    this.setLabelFont(ctx);
+    const padding = Number(this.properties["padding"]) || 0;
+    const lines = this.getLabelLines();
 
     // Apply rotation around the center, if angle provided
     const angleDeg = parseInt(String(this.properties["angle"] ?? 0)) || 0;
     if (angleDeg) {
-      const cx = this.size[0] / 2;
-      const cy = this.size[1] / 2;
+      const cx = width / 2;
+      const cy = height / 2;
       ctx.translate(cx, cy);
       ctx.rotate((angleDeg * Math.PI) / 180);
       ctx.translate(-cx, -cy);
@@ -96,7 +163,7 @@ export class Label extends RgthreeBaseVirtualNode {
     if (backgroundColor) {
       ctx.beginPath();
       const borderRadius = Number(this.properties["borderRadius"]) || 0;
-      ctx.roundRect(0, 0, this.size[0], this.size[1], [borderRadius]);
+      ctx.roundRect(0, 0, width, height, [borderRadius]);
       ctx.fillStyle = backgroundColor;
       ctx.fill();
     }
@@ -104,10 +171,10 @@ export class Label extends RgthreeBaseVirtualNode {
     let textX = padding;
     if (this.properties["textAlign"] === "center") {
       ctx.textAlign = "center";
-      textX = this.size[0] / 2;
+      textX = width / 2;
     } else if (this.properties["textAlign"] === "right") {
       ctx.textAlign = "right";
-      textX = this.size[0] - padding;
+      textX = width - padding;
     }
     ctx.textBaseline = "top";
     ctx.fillStyle = fontColor;
@@ -121,6 +188,7 @@ export class Label extends RgthreeBaseVirtualNode {
 
   override onDblClick(event: CanvasMouseEvent, pos: Point, canvas: TLGraphCanvas) {
     // Since everything we can do here is in the properties, let's pop open the properties panel.
+    // (Nodes 2.0 doesn't call this; there, the "⚙️ Properties" menu item opens our own dialog.)
     LGraphCanvas.active_canvas.showShowNodePanel(this as LGraphNode);
   }
 
@@ -145,13 +213,14 @@ export class Label extends RgthreeBaseVirtualNode {
         The text shown is the "Title" of the node and you can adjust the the font size, font family,
         font color, text alignment as well as a background color, padding, and background border
         radius from the node's properties. You can double-click the node to open the properties
-        panel.
+        panel (or, with ComfyUI's Nodes 2.0, choose "⚙️ Properties" from the right-click menu).
       <p>
       <ul>
         <li>
           <p>
             <strong>Pro tip #1:</strong> You can add multiline text from the properties panel
-            <i>(because ComfyUI let's you shift + enter there, only)</i>.
+            <i>(because ComfyUI let's you shift + enter there, only)</i>, or the "Title" field of
+            the "⚙️ Properties" dialog in Nodes 2.0.
           </p>
         </li>
         <li>

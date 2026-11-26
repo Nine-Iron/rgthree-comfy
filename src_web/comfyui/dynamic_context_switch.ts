@@ -19,6 +19,7 @@ import {
 import {getConnectedInputNodesAndFilterPassThroughs} from "./utils.js";
 import {debounce, moveArrayItem} from "rgthree/common/shared_utils.js";
 import {measureText} from "./utils_canvas.js";
+import {addVueOnlyBadge} from "./utils_vue_nodes.js";
 import {SERVICE as CONFIG_SERVICE} from "./services/config_service.js";
 
 type ShadowInputData = {
@@ -62,6 +63,14 @@ class DynamicContextSwitchNode extends DynamicContextNodeBase {
 
   constructor(title = DynamicContextSwitchNode.title) {
     super(title);
+    // In Nodes 2.0, `onDrawForeground` isn't called, so surface output statuses in a badge.
+    addVueOnlyBadge(this as unknown as LGraphNode, () => {
+      const errors = this.outputs.filter((o) => o.rgthree_status === "ERROR").length;
+      const warns = this.outputs.filter((o) => o.rgthree_status === "WARN").length;
+      return [errors ? `🛑 ${errors}` : "", warns ? `⚠️ ${warns}` : ""]
+        .filter((t) => t)
+        .join(" ");
+    });
   }
 
   override getContextInputsList() {

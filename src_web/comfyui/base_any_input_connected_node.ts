@@ -319,6 +319,8 @@ export class BaseAnyInputConnectedNode extends RgthreeBaseVirtualNode {
       name: (node) =>
         `${node.properties?.["collapse_connections"] ? "Show" : "Collapse"} Connections`,
       property: "collapse_connections",
+      // Collapsing is done when drawing slots on the canvas, which Nodes 2.0 doesn't use.
+      hideInVueNodes: true,
       prepareValue: (_value, node) => !node.properties?.["collapse_connections"],
       callback: (_node) => {
         app.canvas.getCurrentGraph()?.setDirtyCanvas(true, true);

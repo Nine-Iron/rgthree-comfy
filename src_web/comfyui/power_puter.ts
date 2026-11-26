@@ -21,6 +21,7 @@ import {
   isLowQuality,
   measureText,
 } from "./utils_canvas.js";
+import {isVueNodesMode} from "./utils_vue_nodes.js";
 import {rgthree} from "./rgthree.js";
 
 type Vector4 = [number, number, number, number];
@@ -326,11 +327,11 @@ class OutputsWidget extends RgthreeBaseWidget<OutputsWidgetValue> {
     height = this.neededHeight;
     const margin = 10;
     const innerMargin = margin * 0.33;
-    const width = node.size[0] - margin * 2;
+    const width = w - margin * 2;
     let borderRadius = LiteGraph.NODE_WIDGET_HEIGHT * 0.5;
     let midY = posY + height * 0.5;
     let posX = margin;
-    let rposX = node.size[0] - margin;
+    let rposX = w - margin;
 
     // Draw the background encompassing everything, and move our current posX's to create space from
     // the border.
@@ -446,8 +447,13 @@ class OutputsWidget extends RgthreeBaseWidget<OutputsWidgetValue> {
     }
 
     // Set the rows now that we're drawn.
+    const rowsChanged = this.rows !== rows;
     this.rows = rows;
     ctx.restore();
+    // In Nodes 2.0, our height is read before drawing, so redraw if the number of rows changed.
+    if (rowsChanged && isVueNodesMode()) {
+      requestAnimationFrame(() => this.triggerDraw?.());
+    }
   }
 }
 

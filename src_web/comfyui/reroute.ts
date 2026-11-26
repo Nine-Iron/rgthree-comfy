@@ -1129,6 +1129,8 @@ class RerouteNode extends RgthreeBaseVirtualNode {
 addMenuItem(RerouteNode, app, {
   name: (node) => `${node.properties?.["showLabel"] ? "Hide" : "Show"} Label/Title`,
   property: "showLabel",
+  // The label is drawn in `onDrawForeground`, which Nodes 2.0 doesn't call.
+  hideInVueNodes: true,
   callback: async (node, value) => {
     app.graph.setDirtyCanvas(true, true);
   },
@@ -1136,6 +1138,8 @@ addMenuItem(RerouteNode, app, {
 
 addMenuItem(RerouteNode, app, {
   name: (node) => `${node.resizable ? "No" : "Allow"} Resizing`,
+  // Nodes 2.0 sizes nodes from its own DOM layout.
+  hideInVueNodes: true,
   callback: (node) => {
     (node as RerouteNode).setResizable(!node.resizable);
     node.size[0] = Math.max(40, node.size[0]);
@@ -1147,6 +1151,7 @@ addMenuItem(RerouteNode, app, {
 addMenuItem(RerouteNode, app, {
   name: "Static Width",
   property: "size",
+  hideInVueNodes: true,
   subMenuOptions: (() => {
     const options = [];
     for (let w = 8; w > 0; w--) {
@@ -1164,6 +1169,7 @@ addMenuItem(RerouteNode, app, {
 addMenuItem(RerouteNode, app, {
   name: "Static Height",
   property: "size",
+  hideInVueNodes: true,
   subMenuOptions: (() => {
     const options = [];
     for (let w = 8; w > 0; w--) {
@@ -1202,6 +1208,8 @@ addConnectionLayoutSupport(
 
 addMenuItem(RerouteNode, app, {
   name: "Rotate",
+  // Rotating changes the slot positions, which Nodes 2.0 lays out itself.
+  hideInVueNodes: true,
   subMenuOptions: [
     "Rotate 90° Clockwise",
     "Rotate 90° Counter-Clockwise",

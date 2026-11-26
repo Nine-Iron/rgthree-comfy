@@ -21,6 +21,7 @@ import {wait} from "rgthree/common/shared_utils.js";
 import {BaseCollectorNode} from "./base_node_collector.js";
 import {NodeTypesString, stripRgthree} from "./constants.js";
 import {fitString} from "./utils_canvas.js";
+import {addVueOnlyBadge, isVueNodesMode} from "./utils_vue_nodes.js";
 import {rgthree} from "./rgthree.js";
 
 const MODE_ALWAYS = 0;
@@ -83,7 +84,25 @@ class NodeModeRelay extends BaseCollectorNode {
     this.properties["on_bypassed_inputs"] = "BYPASS";
     this.properties["on_any_active_inputs"] = "ACTIVE";
 
+    // In Nodes 2.0, `onDrawForeground` isn't called, so show non-default mappings in a badge.
+    addVueOnlyBadge(this as unknown as LGraphNode, () =>
+      this.hasNonDefaultMapping()
+        ? `MUTE > ${this.properties["on_muted_inputs"]}, ` +
+          `BYPASS > ${this.properties["on_bypassed_inputs"]}, ` +
+          `ACTIVE > ${this.properties["on_any_active_inputs"]}`
+        : "",
+    );
+
     this.onConstructed();
+  }
+
+  /** Whether any of the mode mappings differ from the default relaying. */
+  private hasNonDefaultMapping() {
+    return (
+      this.properties["on_muted_inputs"] !== "MUTE" ||
+      this.properties["on_bypassed_inputs"] !== "BYPASS" ||
+      this.properties["on_any_active_inputs"] != "ACTIVE"
+    );
   }
 
   override onConstructed() {
@@ -138,11 +157,8 @@ class NodeModeRelay extends BaseCollectorNode {
 
   override computeSize(out: Point) {
     let size = super.computeSize(out);
-    if (
-      this.properties["on_muted_inputs"] !== "MUTE" ||
-      this.properties["on_bypassed_inputs"] !== "BYPASS" ||
-      this.properties["on_any_active_inputs"] != "ACTIVE"
-    ) {
+    // Space for the label drawn in `onDrawForeground`, which isn't drawn in Nodes 2.0.
+    if (this.hasNonDefaultMapping() && !isVueNodesMode()) {
       size[1] += 17;
     }
     return size;

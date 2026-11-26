@@ -836,12 +836,14 @@ RerouteNode.size = configDefaultSize;
 addMenuItem(RerouteNode, app, {
     name: (node) => { var _a; return `${((_a = node.properties) === null || _a === void 0 ? void 0 : _a["showLabel"]) ? "Hide" : "Show"} Label/Title`; },
     property: "showLabel",
+    hideInVueNodes: true,
     callback: async (node, value) => {
         app.graph.setDirtyCanvas(true, true);
     },
 });
 addMenuItem(RerouteNode, app, {
     name: (node) => `${node.resizable ? "No" : "Allow"} Resizing`,
+    hideInVueNodes: true,
     callback: (node) => {
         node.setResizable(!node.resizable);
         node.size[0] = Math.max(40, node.size[0]);
@@ -852,6 +854,7 @@ addMenuItem(RerouteNode, app, {
 addMenuItem(RerouteNode, app, {
     name: "Static Width",
     property: "size",
+    hideInVueNodes: true,
     subMenuOptions: (() => {
         const options = [];
         for (let w = 8; w > 0; w--) {
@@ -868,6 +871,7 @@ addMenuItem(RerouteNode, app, {
 addMenuItem(RerouteNode, app, {
     name: "Static Height",
     property: "size",
+    hideInVueNodes: true,
     subMenuOptions: (() => {
         const options = [];
         for (let w = 8; w > 0; w--) {
@@ -899,6 +903,7 @@ addConnectionLayoutSupport(RerouteNode, app, [
 });
 addMenuItem(RerouteNode, app, {
     name: "Rotate",
+    hideInVueNodes: true,
     subMenuOptions: [
         "Rotate 90° Clockwise",
         "Rotate 90° Counter-Clockwise",

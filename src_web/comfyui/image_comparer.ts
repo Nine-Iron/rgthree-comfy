@@ -15,6 +15,7 @@ import {NodeTypesString} from "./constants.js";
 import {addConnectionLayoutSupport} from "./utils.js";
 import {RgthreeBaseHitAreas, RgthreeBaseWidget, RgthreeBaseWidgetBounds} from "./utils_widgets.js";
 import {measureText} from "./utils_canvas.js";
+import {getVueWidgetLocalPos, isVueNodesMode} from "./utils_vue_nodes.js";
 
 type ComfyImageServerData = {filename: string; type: string; subfolder: string};
 type ComfyImageData = {name: string; selected: boolean; url: string; img?: HTMLImageElement};
@@ -212,7 +213,8 @@ export class RgthreeImageComparer extends RgthreeBaseServerNode {
         <li>
           <p>
             <strong>Properties.</strong> You can change the following properties (by right-clicking
-            on the node, and select "Properties" or "Properties Panel" from the menu):
+            on the node, and select "Properties" or "Properties Panel" from the menu, or
+            "⚙️ Properties" with ComfyUI's Nodes 2.0):
           </p>
           <ul>
             <li><p>
@@ -314,16 +316,94 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget<RgthreeImageComparerW
     for (const sel of selected) {
       if (!sel.img) {
         sel.img = new Image();
+        sel.img.onload = () => {
+          this.triggerDraw?.();
+        };
         sel.img.src = sel.url;
         this.node.imgs.push(sel.img);
       }
       sel.selected = true;
     }
     this.selected = selected;
+    this.triggerDraw?.();
   }
 
-  draw(ctx: CanvasRenderingContext2D, node: RgthreeImageComparer, width: number, y: number) {
+  /** The [width, bottom] area to draw images within. */
+  private drawArea: Point = [0, 0];
+  /** The Nodes 2.0 widget canvas we've attached pointer listeners to. */
+  private vueCanvas: HTMLCanvasElement | null = null;
+
+  /**
+   * In Nodes 2.0, the node doesn't receive pointer enter/move/leave/down events, so we listen on
+   * our own widget canvas to support the slide and click comparisons.
+   */
+  private bindVueCanvas(canvas: HTMLCanvasElement) {
+    if (this.vueCanvas === canvas) return;
+    this.vueCanvas = canvas;
+    const node = this.node;
+    const updatePos = (e: PointerEvent) => {
+      node.pointerOverPos = getVueWidgetLocalPos(e, canvas) ?? node.pointerOverPos;
+    };
+    canvas.addEventListener("pointerenter", (e) => {
+      if (this.vueCanvas !== canvas) return;
+      node.isPointerOver = true;
+      updatePos(e);
+      this.triggerDraw?.();
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (this.vueCanvas !== canvas) return;
+      updatePos(e);
+      this.triggerDraw?.();
+    });
+    canvas.addEventListener("pointerleave", () => {
+      if (this.vueCanvas !== canvas) return;
+      node.isPointerOver = false;
+      node.isPointerDown = false;
+      this.triggerDraw?.();
+    });
+    // Capture phase, since the ComfyUI widget wrapper stops propagation of these.
+    canvas.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (this.vueCanvas !== canvas || e.button !== 0) return;
+        node.isPointerDown = true;
+        this.triggerDraw?.();
+      },
+      {capture: true},
+    );
+    canvas.addEventListener(
+      "pointerup",
+      () => {
+        if (this.vueCanvas !== canvas) return;
+        node.isPointerDown = false;
+        this.triggerDraw?.();
+      },
+      {capture: true},
+    );
+  }
+
+  /** The height of the label row, when there are more than two images to choose from. */
+  private getLabelsHeight() {
+    return this.value.images.length > 2 ? 20 : 0;
+  }
+
+  draw(
+    ctx: CanvasRenderingContext2D,
+    node: RgthreeImageComparer,
+    width: number,
+    y: number,
+    height?: number,
+  ) {
     this.hitAreas = {};
+    if (isVueNodesMode()) {
+      // In Nodes 2.0 we draw into our own canvas, sized by `computeSize`.
+      this.drawArea = [width, y + (height ?? 0)];
+      if (ctx.canvas instanceof HTMLCanvasElement) {
+        this.bindVueCanvas(ctx.canvas);
+      }
+    } else {
+      this.drawArea = [node.size[0], node.size[1]];
+    }
     if (this.value.images.length > 2) {
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
@@ -342,7 +422,7 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget<RgthreeImageComparerW
         });
         x += width + spacing;
       }
-      x = (node.size[0] - (x - spacing)) / 2;
+      x = (this.drawArea[0] - (x - spacing)) / 2;
       for (const d of drawData) {
         ctx.fillStyle = d.img.selected ? "rgba(180, 180, 180, 1)" : "rgba(180, 180, 180, 0.5)";
         ctx.fillText(d.text, x, y);
@@ -353,7 +433,7 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget<RgthreeImageComparerW
         };
         x += d.width + spacing;
       }
-      y += 20;
+      y += this.getLabelsHeight();
     }
 
     if (node.properties?.["comparer_mode"] === "Click") {
@@ -390,7 +470,7 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget<RgthreeImageComparerW
     if (!image?.img?.naturalWidth || !image?.img?.naturalHeight) {
       return;
     }
-    let [nodeWidth, nodeHeight] = this.node.size as [number, number];
+    let [nodeWidth, nodeHeight] = this.drawArea;
     const imageAspect = image?.img.naturalWidth / image?.img.naturalHeight;
     let height = nodeHeight - y;
     const widgetAspect = nodeWidth / height;
@@ -452,6 +532,16 @@ class RgthreeImageComparerWidget extends RgthreeBaseWidget<RgthreeImageComparerW
   }
 
   computeSize(width: number): Point {
+    // In Nodes 2.0, the node's size follows its widgets, so size ourselves to fit the image at the
+    // drawn width. In classic mode, we draw to fill whatever size the node is.
+    if (isVueNodesMode()) {
+      const img = this.selected[0]?.img;
+      const aspect =
+        img?.naturalWidth && img?.naturalHeight ? img.naturalWidth / img.naturalHeight : 0;
+      if (aspect) {
+        return [width, this.getLabelsHeight() + Math.round(width / aspect)];
+      }
+    }
     return [width, 20];
   }
 

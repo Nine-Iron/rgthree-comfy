@@ -1,5 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { drawNodeWidget, drawWidgetButton, fitString, isLowQuality } from "./utils_canvas.js";
+import { getVueWidgetLocalPos, initVueNodesSupport, isVueNodesMode, redrawVueNodeWidgets, } from "./utils_vue_nodes.js";
+initVueNodesSupport();
 export function drawLabelAndValue(ctx, label, value, width, posY, height, options) {
     var _a;
     const outerMargin = 15;
@@ -19,12 +21,21 @@ export function drawLabelAndValue(ctx, label, value, width, posY, height, option
     ctx.restore();
 }
 export class RgthreeBaseWidget {
+    static getRecentContextWidget(node, withinMs = 2000) {
+        const last = RgthreeBaseWidget.lastContextWidget;
+        if (!isVueNodesMode() || !last || last.node !== node || Date.now() - last.time > withinMs) {
+            return null;
+        }
+        return last.widget;
+    }
     constructor(name) {
         this.type = "custom";
         this.options = {};
         this.y = 0;
         this.last_y = 0;
         this.disabled = false;
+        this.isRgthreeCanvasWidget = true;
+        this.vueElement = null;
         this.mouseDowned = null;
         this.isMouseDownedAndOver = false;
         this.hitAreas = {};
@@ -45,8 +56,37 @@ export class RgthreeBaseWidget {
         return clickedX && pos[1] >= bounds[1] && pos[1] <= bounds[1] + bounds[3];
     }
     mouse(event, pos, node) {
+        var _a;
+        if (!isVueNodesMode()) {
+            return this.handleMouse(event, pos, node);
+        }
+        if (event.type == "pointerdown" && event.button !== 0) {
+            RgthreeBaseWidget.lastContextWidget = { widget: this, node, time: Date.now() };
+            return false;
+        }
+        if (event.type == "pointerdown" && event.target instanceof Element) {
+            this.vueElement = event.target;
+        }
+        pos = (_a = getVueWidgetLocalPos(event, this.vueElement)) !== null && _a !== void 0 ? _a : pos;
+        const handled = this.handleMouse(event, pos, node);
+        redrawVueNodeWidgets(node);
+        return handled;
+    }
+    isPosOutsideWidget(pos, node) {
         var _a, _b, _c;
-        const canvas = app.canvas;
+        if (isVueNodesMode()) {
+            const el = this.vueElement;
+            const width = (_b = (_a = el === null || el === void 0 ? void 0 : el.offsetWidth) !== null && _a !== void 0 ? _a : this.width) !== null && _b !== void 0 ? _b : node.size[0];
+            const height = (_c = el === null || el === void 0 ? void 0 : el.offsetHeight) !== null && _c !== void 0 ? _c : LiteGraph.NODE_WIDGET_HEIGHT;
+            return pos[0] < 15 || pos[0] > width - 15 || pos[1] < 0 || pos[1] > height;
+        }
+        return (pos[0] < 15 ||
+            pos[0] > node.size[0] - 15 ||
+            pos[1] < this.last_y ||
+            pos[1] > this.last_y + LiteGraph.NODE_WIDGET_HEIGHT);
+    }
+    handleMouse(event, pos, node) {
+        var _a, _b, _c;
         if (event.type == "pointerdown") {
             this.mouseDowned = [...pos];
             this.isMouseDownedAndOver = true;
@@ -99,11 +139,7 @@ export class RgthreeBaseWidget {
         }
         if (event.type == "pointermove") {
             this.isMouseDownedAndOver = !!this.mouseDowned;
-            if (this.mouseDowned &&
-                (pos[0] < 15 ||
-                    pos[0] > node.size[0] - 15 ||
-                    pos[1] < this.last_y ||
-                    pos[1] > this.last_y + LiteGraph.NODE_WIDGET_HEIGHT)) {
+            if (this.mouseDowned && this.isPosOutsideWidget(pos, node)) {
                 this.isMouseDownedAndOver = false;
             }
             for (const part of Object.values(this.hitAreas)) {
@@ -136,6 +172,7 @@ export class RgthreeBaseWidget {
         return;
     }
 }
+RgthreeBaseWidget.lastContextWidget = null;
 export class RgthreeBetterButtonWidget extends RgthreeBaseWidget {
     constructor(name, mouseClickCallback, label) {
         super(name);

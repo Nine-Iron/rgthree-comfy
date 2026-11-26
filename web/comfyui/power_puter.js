@@ -6,6 +6,7 @@ import { debounce } from "../../rgthree/common/shared_utils.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 import { RgthreeBaseWidget } from "./utils_widgets.js";
 import { drawPlusIcon, drawRoundedRectangle, drawWidgetButton, isLowQuality, measureText, } from "./utils_canvas.js";
+import { isVueNodesMode } from "./utils_vue_nodes.js";
 import { rgthree } from "./rgthree.js";
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz".split("");
 const OUTPUT_TYPES = ["STRING", "INT", "FLOAT", "BOOLEAN", "*"];
@@ -215,11 +216,11 @@ class OutputsWidget extends RgthreeBaseWidget {
         height = this.neededHeight;
         const margin = 10;
         const innerMargin = margin * 0.33;
-        const width = node.size[0] - margin * 2;
+        const width = w - margin * 2;
         let borderRadius = LiteGraph.NODE_WIDGET_HEIGHT * 0.5;
         let midY = posY + height * 0.5;
         let posX = margin;
-        let rposX = node.size[0] - margin;
+        let rposX = w - margin;
         drawRoundedRectangle(ctx, { pos: [posX, posY], size: [width, height], borderRadius });
         posX += innerMargin * 2;
         rposX -= innerMargin * 2;
@@ -301,8 +302,12 @@ class OutputsWidget extends RgthreeBaseWidget {
         else {
             addHitArea.bounds = [0, 0, 0, 0];
         }
+        const rowsChanged = this.rows !== rows;
         this.rows = rows;
         ctx.restore();
+        if (rowsChanged && isVueNodesMode()) {
+            requestAnimationFrame(() => { var _a; return (_a = this.triggerDraw) === null || _a === void 0 ? void 0 : _a.call(this); });
+        }
     }
 }
 app.registerExtension({

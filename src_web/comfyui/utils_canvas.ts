@@ -1,6 +1,7 @@
 import type {LGraphCanvas as TLGraphCanvas, Point} from "@comfyorg/frontend";
 
 import {app} from "scripts/app.js";
+import {isVueNodesMode} from "./utils_vue_nodes.js";
 
 function binarySearch(max: number, getValue: (n: number) => number, match: number) {
   let min = 0;
@@ -60,6 +61,9 @@ type WidgetRenderingOptions = {
 };
 
 export function isLowQuality() {
+  // In Nodes 2.0, widgets are drawn into their own fixed-resolution canvases, so the graph zoom
+  // level doesn't apply.
+  if (isVueNodesMode()) return false;
   const canvas = app.canvas as TLGraphCanvas;
   return (canvas.ds?.scale || 1) <= 0.5;
 }

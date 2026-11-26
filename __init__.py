@@ -110,6 +110,3 @@ print()
 adjs = ['exciting', 'extraordinary', 'epic', 'fantastic', 'magnificent']
 log(f'Loaded {len(nodes)} {random.choice(adjs)} nodes. 🎉', color='BRIGHT_GREEN')
 print()
-
-if get_config_value('announcements.comfy-nodes-20.incompatible', True):
-  log_known_message('NODES2.0')

@@ -5,6 +5,7 @@ import { SERVICE as CONTEXT_SERVICE, getContextOutputName, } from "./services/co
 import { getConnectedInputNodesAndFilterPassThroughs } from "./utils.js";
 import { debounce, moveArrayItem } from "../../rgthree/common/shared_utils.js";
 import { measureText } from "./utils_canvas.js";
+import { addVueOnlyBadge } from "./utils_vue_nodes.js";
 import { SERVICE as CONFIG_SERVICE } from "./services/config_service.js";
 class DynamicContextSwitchNode extends DynamicContextNodeBase {
     constructor(title = DynamicContextSwitchNode.title) {
@@ -14,6 +15,13 @@ class DynamicContextSwitchNode extends DynamicContextNodeBase {
         this.shadowInputs = [
             { name: "base_ctx", type: "RGTHREE_DYNAMIC_CONTEXT", link: null, count: 0, boundingRect: [0, 0, 0, 0] },
         ];
+        addVueOnlyBadge(this, () => {
+            const errors = this.outputs.filter((o) => o.rgthree_status === "ERROR").length;
+            const warns = this.outputs.filter((o) => o.rgthree_status === "WARN").length;
+            return [errors ? `🛑 ${errors}` : "", warns ? `⚠️ ${warns}` : ""]
+                .filter((t) => t)
+                .join(" ");
+        });
     }
     getContextInputsList() {
         return this.shadowInputs;

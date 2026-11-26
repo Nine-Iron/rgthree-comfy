@@ -2,7 +2,9 @@ import { app } from "../../scripts/app.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 import { SERVICE as KEY_EVENT_SERVICE } from "./services/key_events_services.js";
 import { LogLevel, rgthree } from "./rgthree.js";
-import { addHelpMenuItem } from "./utils.js";
+import { addHelpMenuItem, addMenuItemOnExtraMenuOptions } from "./utils.js";
+import { isVueNodesMode } from "./utils_vue_nodes.js";
+import { showPropertiesDialog } from "./dialog_properties.js";
 import { RgthreeHelpDialog } from "../../rgthree/common/dialog.js";
 import { importIndividualNodesInnerOnDragDrop, importIndividualNodesInnerOnDragOver, } from "./feature_import_individual_nodes.js";
 import { defineProperty, findPrototypePropertyDescriptor, moveArrayItem, } from "../../rgthree/common/shared_utils.js";
@@ -216,6 +218,9 @@ export class RgthreeBaseNode extends LGraphNode {
         }
         else if ((_c = (_b = this.constructor.nodeType) === null || _b === void 0 ? void 0 : _b.prototype) === null || _c === void 0 ? void 0 : _c.getExtraMenuOptions) {
             (_f = (_e = (_d = this.constructor.nodeType) === null || _d === void 0 ? void 0 : _d.prototype) === null || _e === void 0 ? void 0 : _e.getExtraMenuOptions) === null || _f === void 0 ? void 0 : _f.apply(this, [canvas, options]);
+        }
+        if (isVueNodesMode()) {
+            addMenuItemOnExtraMenuOptions(this, { name: "⚙️ Properties", callback: (node) => showPropertiesDialog(node) }, options);
         }
         const help = this.getHelp() || this.constructor.help;
         if (help) {

@@ -164,47 +164,9 @@ class RgthreePowerLoraLoader extends RgthreeBaseServerNode {
         return slot;
     }
     getSlotMenuOptions(slot) {
-        var _c, _d, _e, _f, _g, _h;
+        var _c, _d;
         if ((_d = (_c = slot === null || slot === void 0 ? void 0 : slot.widget) === null || _c === void 0 ? void 0 : _c.name) === null || _d === void 0 ? void 0 : _d.startsWith("lora_")) {
-            const widget = slot.widget;
-            const index = this.widgets.indexOf(widget);
-            const canMoveUp = !!((_f = (_e = this.widgets[index - 1]) === null || _e === void 0 ? void 0 : _e.name) === null || _f === void 0 ? void 0 : _f.startsWith("lora_"));
-            const canMoveDown = !!((_h = (_g = this.widgets[index + 1]) === null || _g === void 0 ? void 0 : _g.name) === null || _h === void 0 ? void 0 : _h.startsWith("lora_"));
-            const menuItems = [
-                {
-                    content: `ℹ️ Show Info`,
-                    callback: () => {
-                        widget.showLoraInfoDialog();
-                    },
-                },
-                null,
-                {
-                    content: `${widget.value.on ? "⚫" : "🟢"} Toggle ${widget.value.on ? "Off" : "On"}`,
-                    callback: () => {
-                        widget.value.on = !widget.value.on;
-                    },
-                },
-                {
-                    content: `⬆️ Move Up`,
-                    disabled: !canMoveUp,
-                    callback: () => {
-                        moveArrayItem(this.widgets, widget, index - 1);
-                    },
-                },
-                {
-                    content: `⬇️ Move Down`,
-                    disabled: !canMoveDown,
-                    callback: () => {
-                        moveArrayItem(this.widgets, widget, index + 1);
-                    },
-                },
-                {
-                    content: `🗑️ Remove`,
-                    callback: () => {
-                        removeArrayItem(this.widgets, widget);
-                    },
-                },
-            ];
+            const menuItems = this.getLoraWidgetMenuItems(slot.widget);
             new LiteGraph.ContextMenu(menuItems, {
                 title: "LORA WIDGET",
                 event: rgthree.lastCanvasMouseEvent,
@@ -212,6 +174,67 @@ class RgthreePowerLoraLoader extends RgthreeBaseServerNode {
             return undefined;
         }
         return this.defaultGetSlotMenuOptions(slot);
+    }
+    getExtraMenuOptions(canvas, options) {
+        var _c, _d;
+        const value = super.getExtraMenuOptions(canvas, options);
+        const widget = RgthreeBaseWidget.getRecentContextWidget(this);
+        if ((_c = widget === null || widget === void 0 ? void 0 : widget.name) === null || _c === void 0 ? void 0 : _c.startsWith("lora_")) {
+            const loraLabel = String(((_d = widget.value) === null || _d === void 0 ? void 0 : _d.lora) || "None");
+            options.push(null, {
+                content: `🔗 Lora: ${loraLabel}`,
+                has_submenu: true,
+                submenu: {
+                    options: this.getLoraWidgetMenuItems(widget),
+                },
+            });
+        }
+        return value;
+    }
+    getLoraWidgetMenuItems(widget) {
+        var _c, _d, _e, _f;
+        const index = this.widgets.indexOf(widget);
+        const canMoveUp = !!((_d = (_c = this.widgets[index - 1]) === null || _c === void 0 ? void 0 : _c.name) === null || _d === void 0 ? void 0 : _d.startsWith("lora_"));
+        const canMoveDown = !!((_f = (_e = this.widgets[index + 1]) === null || _e === void 0 ? void 0 : _e.name) === null || _f === void 0 ? void 0 : _f.startsWith("lora_"));
+        return [
+            {
+                content: `ℹ️ Show Info`,
+                callback: () => {
+                    widget.showLoraInfoDialog();
+                },
+            },
+            null,
+            {
+                content: `${widget.value.on ? "⚫" : "🟢"} Toggle ${widget.value.on ? "Off" : "On"}`,
+                callback: () => {
+                    widget.value.on = !widget.value.on;
+                    this.setDirtyCanvas(true, true);
+                },
+            },
+            {
+                content: `⬆️ Move Up`,
+                disabled: !canMoveUp,
+                callback: () => {
+                    moveArrayItem(this.widgets, widget, index - 1);
+                    this.setDirtyCanvas(true, true);
+                },
+            },
+            {
+                content: `⬇️ Move Down`,
+                disabled: !canMoveDown,
+                callback: () => {
+                    moveArrayItem(this.widgets, widget, index + 1);
+                    this.setDirtyCanvas(true, true);
+                },
+            },
+            {
+                content: `🗑️ Remove`,
+                callback: () => {
+                    removeArrayItem(this.widgets, widget);
+                    this.setDirtyCanvas(true, true);
+                },
+            },
+        ];
     }
     refreshComboInNode(defs) {
         rgthreeApi.getLoras(true);
@@ -277,7 +300,8 @@ class RgthreePowerLoraLoader extends RgthreeBaseServerNode {
         <li>
           <p>
             <strong>Properties.</strong> You can change the following properties (by right-clicking
-            on the node, and select "Properties" or "Properties Panel" from the menu):
+            on the node, and select "Properties" or "Properties Panel" from the menu, or
+            "⚙️ Properties" with ComfyUI's Nodes 2.0):
           </p>
           <ul>
             <li><p>
@@ -333,7 +357,7 @@ class PowerLoraLoaderHeaderWidget extends RgthreeBaseWidget {
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText("Toggle All", posX, midY);
-            let rposX = node.size[0] - margin - innerMargin - innerMargin;
+            let rposX = w - margin - innerMargin - innerMargin;
             ctx.textAlign = "center";
             ctx.fillText(this.showModelAndClip ? "Clip" : "Strength", rposX - drawNumberWidgetPart.WIDTH_TOTAL / 2, midY);
             if (this.showModelAndClip) {
@@ -426,7 +450,7 @@ class PowerLoraLoaderWidget extends RgthreeBaseWidget {
         const lowQuality = isLowQuality();
         const midY = posY + height * 0.5;
         let posX = margin;
-        drawRoundedRectangle(ctx, { pos: [posX, posY], size: [node.size[0] - margin * 2, height] });
+        drawRoundedRectangle(ctx, { pos: [posX, posY], size: [w - margin * 2, height] });
         this.hitAreas.toggle.bounds = drawTogglePart(ctx, { posX, posY, height, value: this.value.on });
         posX += this.hitAreas.toggle.bounds[1] + innerMargin;
         if (lowQuality) {
@@ -437,7 +461,7 @@ class PowerLoraLoaderWidget extends RgthreeBaseWidget {
             ctx.globalAlpha = app.canvas.editor_alpha * 0.4;
         }
         ctx.fillStyle = LiteGraph.WIDGET_TEXT_COLOR;
-        let rposX = node.size[0] - margin - innerMargin - innerMargin;
+        let rposX = w - margin - innerMargin - innerMargin;
         const strengthValue = this.showModelAndClip
             ? ((_r = this.value.strengthTwo) !== null && _r !== void 0 ? _r : 1)
             : ((_s = this.value.strength) !== null && _s !== void 0 ? _s : 1);
@@ -449,7 +473,7 @@ class PowerLoraLoaderWidget extends RgthreeBaseWidget {
             textColor = "#c66";
         }
         const [leftArrow, text, rightArrow] = drawNumberWidgetPart(ctx, {
-            posX: node.size[0] - margin - innerMargin - innerMargin,
+            posX: w - margin - innerMargin - innerMargin,
             posY,
             height,
             value: strengthValue,
@@ -611,7 +635,12 @@ class PowerLoraLoaderWidget extends RgthreeBaseWidget {
             else {
                 promise = Promise.resolve(null);
             }
-            this.loraInfoPromise = promise.then((v) => (this.loraInfo = v));
+            this.loraInfoPromise = promise.then((v) => {
+                var _c;
+                this.loraInfo = v;
+                (_c = this.triggerDraw) === null || _c === void 0 ? void 0 : _c.call(this);
+                return v;
+            });
         }
         return this.loraInfoPromise;
     }

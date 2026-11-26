@@ -60,10 +60,5 @@
       "show_info_badge": true,
       "info_autoplay_video": true
     }
-  },
-  "announcements": {
-    "comfy-nodes-20": {
-      "incompatible": true
-    }
   }
 }

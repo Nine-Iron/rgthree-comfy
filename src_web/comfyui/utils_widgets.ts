@@ -9,6 +9,14 @@ import type {
 
 import {app} from "scripts/app.js";
 import {drawNodeWidget, drawWidgetButton, fitString, isLowQuality} from "./utils_canvas.js";
+import {
+  getVueWidgetLocalPos,
+  initVueNodesSupport,
+  isVueNodesMode,
+  redrawVueNodeWidgets,
+} from "./utils_vue_nodes.js";
+
+initVueNodesSupport();
 
 type Vector4 = [number, number, number, number];
 
@@ -99,6 +107,39 @@ export abstract class RgthreeBaseWidget<V extends ICustomWidget["value"]> implem
   y: number = 0;
   last_y: number = 0;
   disabled: boolean = false;
+  /** Set by the ComfyUI frontend to the drawn width (in Nodes 2.0, the widget's own canvas). */
+  width?: number;
+  /**
+   * The width last passed to a subclass's `draw`. Use this rather than `node.size[0]`, since in
+   * Nodes 2.0 the widget is drawn into its own, narrower canvas.
+   */
+  protected lastDrawWidth?: number;
+  /** Identifies rgthree canvas-drawn widgets, e.g. for redrawing in Nodes 2.0. */
+  readonly isRgthreeCanvasWidget = true;
+  /** Set by ComfyUI's Nodes 2.0 `WidgetLegacy` to redraw this widget's own canvas. */
+  triggerDraw?: () => void;
+
+  /**
+   * The last rgthree widget that was right-clicked in Nodes 2.0, so a node can add widget-specific
+   * items to its context menu (which, in Nodes 2.0, has no hook for a widget's own menu).
+   */
+  static lastContextWidget: {
+    widget: RgthreeBaseWidget<any>;
+    node: LGraphNode;
+    time: number;
+  } | null = null;
+
+  /** Returns the widget of `node` that was right-clicked just now, if any, in Nodes 2.0. */
+  static getRecentContextWidget(node: LGraphNode, withinMs = 2000) {
+    const last = RgthreeBaseWidget.lastContextWidget;
+    if (!isVueNodesMode() || !last || last.node !== node || Date.now() - last.time > withinMs) {
+      return null;
+    }
+    return last.widget;
+  }
+
+  /** The Nodes 2.0 canvas element this widget was last pressed in. */
+  private vueElement: Element | null = null;
 
   protected mouseDowned: Point | null = null;
   protected isMouseDownedAndOver: boolean = false;
@@ -127,8 +168,47 @@ export abstract class RgthreeBaseWidget<V extends ICustomWidget["value"]> implem
   }
 
   mouse(event: CanvasPointerEvent, pos: Point, node: LGraphNode) {
-    const canvas = app.canvas as TLGraphCanvas;
+    if (!isVueNodesMode()) {
+      return this.handleMouse(event, pos, node);
+    }
 
+    // In Nodes 2.0, the widget is drawn into its own canvas element by ComfyUI's `WidgetLegacy`.
+    // Right-clicks reach us there too, where LiteGraph never sent them before; record which widget
+    // was right-clicked (so a node's context menu can add widget items) and otherwise ignore it.
+    if (event.type == "pointerdown" && event.button !== 0) {
+      RgthreeBaseWidget.lastContextWidget = {widget: this, node, time: Date.now()};
+      return false;
+    }
+    if (event.type == "pointerdown" && event.target instanceof Element) {
+      this.vueElement = event.target;
+    }
+    pos = getVueWidgetLocalPos(event, this.vueElement) ?? pos;
+    const handled = this.handleMouse(event, pos, node);
+    // Widget actions often change sibling widgets' state (e.g. "Toggle All"), so redraw them all.
+    redrawVueNodeWidgets(node);
+    return handled;
+  }
+
+  /**
+   * Returns whether the pointer is outside of our widget's box. In classic mode, `pos` is relative
+   * to the node; in Nodes 2.0 it is relative to our own widget canvas element.
+   */
+  private isPosOutsideWidget(pos: Point, node: LGraphNode) {
+    if (isVueNodesMode()) {
+      const el = this.vueElement as HTMLElement | null;
+      const width = el?.offsetWidth ?? this.width ?? node.size[0];
+      const height = el?.offsetHeight ?? LiteGraph.NODE_WIDGET_HEIGHT;
+      return pos[0] < 15 || pos[0] > width - 15 || pos[1] < 0 || pos[1] > height;
+    }
+    return (
+      pos[0] < 15 ||
+      pos[0] > node.size[0] - 15 ||
+      pos[1] < this.last_y ||
+      pos[1] > this.last_y + LiteGraph.NODE_WIDGET_HEIGHT
+    );
+  }
+
+  private handleMouse(event: CanvasPointerEvent, pos: Point, node: LGraphNode) {
     if (event.type == "pointerdown") {
       this.mouseDowned = [...pos] as Point;
       this.isMouseDownedAndOver = true;
@@ -187,13 +267,7 @@ export abstract class RgthreeBaseWidget<V extends ICustomWidget["value"]> implem
     if (event.type == "pointermove") {
       this.isMouseDownedAndOver = !!this.mouseDowned;
       // If we've moved off the button while pressing, then consider us no longer pressing.
-      if (
-        this.mouseDowned &&
-        (pos[0] < 15 ||
-          pos[0] > node.size[0] - 15 ||
-          pos[1] < this.last_y ||
-          pos[1] > this.last_y + LiteGraph.NODE_WIDGET_HEIGHT)
-      ) {
+      if (this.mouseDowned && this.isPosOutsideWidget(pos, node)) {
         this.isMouseDownedAndOver = false;
       }
       for (const part of Object.values(this.hitAreas)) {

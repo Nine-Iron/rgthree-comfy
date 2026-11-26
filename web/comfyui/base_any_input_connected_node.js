@@ -182,6 +182,7 @@ export class BaseAnyInputConnectedNode extends RgthreeBaseVirtualNode {
         addMenuItem(this, app, {
             name: (node) => { var _a; return `${((_a = node.properties) === null || _a === void 0 ? void 0 : _a["collapse_connections"]) ? "Show" : "Collapse"} Connections`; },
             property: "collapse_connections",
+            hideInVueNodes: true,
             prepareValue: (_value, node) => { var _a; return !((_a = node.properties) === null || _a === void 0 ? void 0 : _a["collapse_connections"]); },
             callback: (_node) => {
                 var _a;

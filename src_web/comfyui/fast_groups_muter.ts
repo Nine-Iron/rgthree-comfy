@@ -12,8 +12,9 @@ import {app} from "scripts/app.js";
 import {RgthreeBaseVirtualNode} from "./base_node.js";
 import {NodeTypesString} from "./constants.js";
 import {SERVICE as FAST_GROUPS_SERVICE} from "./services/fast_groups_service.js";
-import {drawNodeWidget, fitString} from "./utils_canvas.js";
+import {drawNodeWidget, fitString, isLowQuality} from "./utils_canvas.js";
 import {RgthreeBaseWidget} from "./utils_widgets.js";
+import {isVueNodesMode, redrawVueNodeWidgets} from "./utils_vue_nodes.js";
 import { changeModeOfNodes, getGroupNodes } from "./utils.js";
 
 const PROPERTY_SORT = "sort";
@@ -290,7 +291,8 @@ export abstract class BaseFastGroupsModeChanger extends RgthreeBaseVirtualNode {
         <li>
           <p>
             <strong>Properties.</strong> You can change the following properties (by right-clicking
-            on the node, and select "Properties" or "Properties Panel" from the menu):
+            on the node, and select "Properties" or "Properties Panel" from the menu, or
+            "⚙️ Properties" with ComfyUI's Nodes 2.0):
           </p>
           <ul>
             <li><p>
@@ -438,6 +440,7 @@ class FastGroupsToggleRowWidget extends RgthreeBaseWidget<{toggled: boolean}> {
     posY: number,
     height: number,
   ) {
+    this.lastDrawWidth = width;
     const widgetData = drawNodeWidget(ctx, {size: [width, height], pos: [15, posY]});
 
     const showNav = node.properties?.[PROPERTY_SHOW_NAV] !== false;
@@ -505,11 +508,15 @@ class FastGroupsToggleRowWidget extends RgthreeBaseWidget<{toggled: boolean}> {
   }
 
   override mouse(event: CanvasMouseEvent, pos: Point, node: LGraphNode): boolean {
+    // In Nodes 2.0, right-clicks reach widgets; don't toggle on them.
+    if (isVueNodesMode() && event.button !== 0) {
+      return false;
+    }
     if (event.type == "pointerdown") {
-      if (node.properties?.[PROPERTY_SHOW_NAV] !== false && pos[0] >= node.size[0] - 15 - 28 - 1) {
+      const width = this.lastDrawWidth ?? node.size[0];
+      if (node.properties?.[PROPERTY_SHOW_NAV] !== false && pos[0] >= width - 15 - 28 - 1) {
         const canvas = app.canvas as TLGraphCanvas;
-        const lowQuality = (canvas.ds?.scale || 1) <= 0.5;
-        if (!lowQuality) {
+        if (!isLowQuality()) {
           // Clicked on right half with nav arrow, go to the group, center on group and set
           // zoom to see it all.
           canvas.centerOnNode(this.group);
@@ -524,6 +531,8 @@ class FastGroupsToggleRowWidget extends RgthreeBaseWidget<{toggled: boolean}> {
         }
       } else {
         this.toggle();
+        // In Nodes 2.0, toggling may change other rows (e.g. a "max one" restriction).
+        redrawVueNodeWidgets(node);
       }
     }
     return true;

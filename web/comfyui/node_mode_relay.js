@@ -4,6 +4,7 @@ import { wait } from "../../rgthree/common/shared_utils.js";
 import { BaseCollectorNode } from "./base_node_collector.js";
 import { NodeTypesString, stripRgthree } from "./constants.js";
 import { fitString } from "./utils_canvas.js";
+import { addVueOnlyBadge, isVueNodesMode } from "./utils_vue_nodes.js";
 import { rgthree } from "./rgthree.js";
 const MODE_ALWAYS = 0;
 const MODE_MUTE = 2;
@@ -36,7 +37,17 @@ class NodeModeRelay extends BaseCollectorNode {
         this.properties["on_muted_inputs"] = "MUTE";
         this.properties["on_bypassed_inputs"] = "BYPASS";
         this.properties["on_any_active_inputs"] = "ACTIVE";
+        addVueOnlyBadge(this, () => this.hasNonDefaultMapping()
+            ? `MUTE > ${this.properties["on_muted_inputs"]}, ` +
+                `BYPASS > ${this.properties["on_bypassed_inputs"]}, ` +
+                `ACTIVE > ${this.properties["on_any_active_inputs"]}`
+            : "");
         this.onConstructed();
+    }
+    hasNonDefaultMapping() {
+        return (this.properties["on_muted_inputs"] !== "MUTE" ||
+            this.properties["on_bypassed_inputs"] !== "BYPASS" ||
+            this.properties["on_any_active_inputs"] != "ACTIVE");
     }
     onConstructed() {
         this.addOutput("REPEATER", "_NODE_REPEATER_", {
@@ -83,9 +94,7 @@ class NodeModeRelay extends BaseCollectorNode {
     }
     computeSize(out) {
         let size = super.computeSize(out);
-        if (this.properties["on_muted_inputs"] !== "MUTE" ||
-            this.properties["on_bypassed_inputs"] !== "BYPASS" ||
-            this.properties["on_any_active_inputs"] != "ACTIVE") {
+        if (this.hasNonDefaultMapping() && !isVueNodesMode()) {
             size[1] += 17;
         }
         return size;

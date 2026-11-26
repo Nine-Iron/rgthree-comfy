@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { isVueNodesMode } from "./utils_vue_nodes.js";
 function binarySearch(max, getValue, match) {
     let min = 0;
     while (min <= max) {
@@ -28,6 +29,8 @@ export function measureText(ctx, str) {
 }
 export function isLowQuality() {
     var _a;
+    if (isVueNodesMode())
+        return false;
     const canvas = app.canvas;
     return (((_a = canvas.ds) === null || _a === void 0 ? void 0 : _a.scale) || 1) <= 0.5;
 }

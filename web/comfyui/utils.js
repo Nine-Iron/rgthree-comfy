@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { getResolver, wait } from "../../rgthree/common/shared_utils.js";
 import { RgthreeHelpDialog } from "../../rgthree/common/dialog.js";
+import { isVueNodesMode } from "./utils_vue_nodes.js";
 const oldApiGetNodeDefs = api.getNodeDefs;
 api.getNodeDefs = async function () {
     const defs = await oldApiGetNodeDefs.call(api);
@@ -31,6 +32,9 @@ export function addMenuItem(node, _app, config, after = "Shape") {
     const oldGetExtraMenuOptions = node.prototype.getExtraMenuOptions;
     node.prototype.getExtraMenuOptions = function (canvas, menuOptions) {
         oldGetExtraMenuOptions && oldGetExtraMenuOptions.apply(this, [canvas, menuOptions]);
+        if (config.hideInVueNodes && isVueNodesMode()) {
+            return;
+        }
         addMenuItemOnExtraMenuOptions(this, config, menuOptions, after);
     };
 }
@@ -127,6 +131,7 @@ export function addConnectionLayoutSupport(node, app, options = [
     addMenuItem(node, app, {
         name: "Connections Layout",
         property: "connections_layout",
+        hideInVueNodes: true,
         subMenuOptions: options.map((option) => option[0] + (option[1] ? " -> " + option[1] : "")),
         prepareValue: (value, node) => {
             var _a;

@@ -696,3 +696,41 @@ body:not([style*=grid]):not([class*=grid]) rgthree-progress-bar.rgthree-pos-bott
   background: url(/rgthree/logo.svg?bg=transparent&fg=%2393c5fd);
   background-size: 100% 100%;
 }
+
+.rgthree-properties-dialog {
+  min-width: 420px;
+}
+.rgthree-properties-dialog .rgthree-properties-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rgthree-properties-dialog .rgthree-properties-table th {
+  text-align: left;
+  font-weight: normal;
+  font-size: 0.875rem;
+  opacity: 0.8;
+  padding: 4px 12px 4px 0;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.rgthree-properties-dialog .rgthree-properties-table td {
+  padding: 4px 0;
+  width: 100%;
+}
+.rgthree-properties-dialog .rgthree-properties-table input[type=text],
+.rgthree-properties-dialog .rgthree-properties-table input[type=number],
+.rgthree-properties-dialog .rgthree-properties-table select,
+.rgthree-properties-dialog .rgthree-properties-table textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #222;
+  color: #ddd;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.rgthree-properties-dialog .rgthree-properties-table textarea {
+  resize: vertical;
+}

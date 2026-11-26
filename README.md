@@ -35,6 +35,18 @@ _(Note, settings are stored in an `rgthree_config.json` in the `rgthree-comfy` d
 
 <br>
 
+## ComfyUI Nodes 2.0
+
+rgthree-comfy works with ComfyUI's Nodes 2.0 (Vue-rendered nodes) as well as the classic canvas rendering. A few things behave differently in Nodes 2.0:
+
+- ComfyUI removes the "Properties" and "Properties Panel" menu items, so rgthree nodes add a "âï¸ Properties" item to their right-click menu instead.
+- Right-clicking a Power Lora Loader row adds a "ð Lora" submenu (show info, toggle, move, remove) to the node's menu.
+- Image Comparer sizes itself to the image's aspect ratio.
+- Status text that was drawn on the canvas (Context Switch output warnings, Mute / Bypass Relay mappings) is shown as a node badge.
+- Features that move or draw node slots on the canvas aren't available, because Nodes 2.0 lays out slots itself: "Connections Layout", "Collapse Connections", and the Reroute node's rotate, resize, and label options. Saved layouts are kept and come back in classic mode.
+
+<br>
+
 # ✴️ The Nodes
 
 Note, you can right-click on a bunch of the rgthree-comfy nodes and select `🛟 Node Help` menu item for in-app help when available.

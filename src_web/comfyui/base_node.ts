@@ -15,7 +15,9 @@ import {app} from "scripts/app.js";
 import {ComfyWidgets} from "scripts/widgets.js";
 import {SERVICE as KEY_EVENT_SERVICE} from "./services/key_events_services.js";
 import {LogLevel, rgthree} from "./rgthree.js";
-import {addHelpMenuItem} from "./utils.js";
+import {addHelpMenuItem, addMenuItemOnExtraMenuOptions} from "./utils.js";
+import {isVueNodesMode} from "./utils_vue_nodes.js";
+import {showPropertiesDialog} from "./dialog_properties.js";
 import {RgthreeHelpDialog} from "rgthree/common/dialog.js";
 import {
   importIndividualNodesInnerOnDragDrop,
@@ -366,6 +368,15 @@ export abstract class RgthreeBaseNode extends LGraphNode {
       super.getExtraMenuOptions?.apply(this, [canvas, options]);
     } else if (this.constructor.nodeType?.prototype?.getExtraMenuOptions) {
       this.constructor.nodeType?.prototype?.getExtraMenuOptions?.apply(this, [canvas, options]);
+    }
+    // ComfyUI's Nodes 2.0 removes LiteGraph's "Properties" and "Properties Panel" menu items, so
+    // provide our own way to edit properties there.
+    if (isVueNodesMode()) {
+      addMenuItemOnExtraMenuOptions(
+        this,
+        {name: "⚙️ Properties", callback: (node) => showPropertiesDialog(node)},
+        options,
+      );
     }
     // If we have help content, then add a menu item.
     const help = this.getHelp() || (this.constructor as any).help;
